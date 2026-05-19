@@ -612,7 +612,7 @@
       <a href="#" class="detail-link" id="d-link" target="_blank">→ USGS EVENT PAGE</a>
     </div>
 
-    <div class="usgs-tag">DATA: USGS EARTHQUAKE HAZARDS PROGRAM</div>
+    <div class="usgs-tag">DATA: USGS EARTHQUAKE HAZARDS PROGRAM &nbsp;·&nbsp; MAP: ESRI ARCGIS REST API</div>
   </div>
 </div>
 
@@ -656,8 +656,9 @@ const map = L.map('map', {
   zoomControl: false,
   attributionControl: false,
 }).addLayer(
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 18
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community'
   })
 );
 
