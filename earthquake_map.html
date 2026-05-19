@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEISMIC — Live Earthquake Monitor</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #f0f2f5;
+    --surface:   #ffffff;
+    --panel:     #ffffff;
+    --border:    #dde1e8;
+    --border2:   #c8cdd8;
+    --accent:    #c0392b;
+    --accent-lt: #fde8e6;
+    --accent2:   #e67e22;
+    --accent3:   #d4a017;
+    --text:      #1a1f2e;
+    --text-mid:  #4a5568;
+    --text-dim:  #8a96aa;
+    --green:     #16a34a;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Barlow Condensed', sans-serif;
+    --shadow: 0 2px 12px rgba(0,0,0,0.10);
+    --shadow-lg: 0 8px 40px rgba(0,0,0,0.14);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 54px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 1000;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  }
+
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .logo-word {
+    font-family: var(--sans);
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: 6px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .logo-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .live-dot {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  .filter-group { display: flex; gap: 4px; }
+
+  .filter-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 5px 13px;
+    border: 1px solid var(--border2);
+    background: var(--bg);
+    color: var(--text-mid);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-lt); }
+  .filter-btn.active { border-color: var(--accent); color: var(--surface); background: var(--accent); }
+
+  /* ── LAYOUT ── */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 320px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.04);
+  }
+
+  .sidebar-header {
+    padding: 16px 18px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--bg);
+  }
+
+  .sidebar-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .stats-row { display: flex; gap: 0; }
+
+  .stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .stat + .stat { margin-left: 8px; }
+
+  .stat-num {
+    font-family: var(--mono);
+    font-size: 20px;
+    color: var(--text);
+    font-weight: normal;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .eq-list { overflow-y: auto; flex: 1; }
+
+  .eq-list::-webkit-scrollbar { width: 4px; }
+  .eq-list::-webkit-scrollbar-track { background: transparent; }
+  .eq-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .eq-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.12s;
+    animation: fadeSlide 0.3s ease both;
+  }
+
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .eq-item:hover { background: #f7f8fa; }
+  .eq-item.selected {
+    background: var(--accent-lt);
+    border-left: 3px solid var(--accent);
+    padding-left: 15px;
+  }
+
+  .mag-badge {
+    width: 40px; height: 40px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+
+  .eq-info { flex: 1; min-width: 0; }
+
+  .eq-place {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+  }
+
+  .eq-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 3px;
+    letter-spacing: 0.3px;
+  }
+
+  .eq-time {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  /* ── MAP ── */
+  #map { flex: 1; }
+
+  .leaflet-container {
+    background: #e8edf2 !important;
+    font-family: var(--sans) !important;
+  }
+
+  .leaflet-control-zoom a {
+    color: var(--text) !important;
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+  }
+
+  /* ── DETAIL PANEL ── */
+  .detail-panel {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    z-index: 900;
+    width: 500px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    padding: 22px 26px 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s cubic-bezier(.4,0,.2,1);
+    box-shadow: var(--shadow-lg);
+    border-radius: 2px;
+  }
+
+  .detail-panel.visible {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .detail-close {
+    position: absolute;
+    top: 12px; right: 14px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+    font-family: var(--mono);
+    transition: color 0.15s;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+  }
+
+  .detail-close:hover { color: var(--text); background: var(--bg); }
+
+  .detail-mag-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .detail-mag {
+    font-family: var(--mono);
+    font-size: 54px;
+    line-height: 1;
+    font-weight: bold;
+  }
+
+  .detail-mag-info { flex: 1; padding-top: 4px; }
+
+  .detail-place {
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text);
+    letter-spacing: 0.3px;
+  }
+
+  .detail-type {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    margin-top: 6px;
+    text-transform: uppercase;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+
+  .detail-cell { display: flex; flex-direction: column; gap: 4px; }
+
+  .detail-cell-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .detail-cell-val {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text);
+    font-weight: bold;
+  }
+
+  .detail-link {
+    margin-top: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    text-decoration: none;
+    letter-spacing: 1px;
+    border: 1px solid var(--accent);
+    padding: 7px 16px;
+    border-radius: 3px;
+    transition: all 0.15s;
+    background: transparent;
+  }
+
+  .detail-link:hover { background: var(--accent-lt); }
+
+  /* ── LEGEND ── */
+  .legend {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 800;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 14px 18px;
+    box-shadow: var(--shadow);
+    border-radius: 6px;
+  }
+
+  .legend-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 7px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mid);
+  }
+
+  .legend-dot {
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid rgba(0,0,0,0.15);
+  }
+
+  /* ── LOADING ── */
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    transition: opacity 0.5s;
+  }
+
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .loading-title {
+    font-family: var(--sans);
+    font-weight: 900;
+    font-size: 36px;
+    letter-spacing: 10px;
+    color: var(--accent);
+  }
+
+  .loading-bar-wrap {
+    width: 240px;
+    height: 3px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+    border-radius: 2px;
+  }
+
+  .loading-bar {
+    position: absolute;
+    left: -60%;
+    width: 60%;
+    height: 100%;
+    background: var(--accent);
+    animation: loadSlide 1.2s infinite ease-in-out;
+    border-radius: 2px;
+  }
+
+  @keyframes loadSlide {
+    0%   { left: -60%; }
+    100% { left: 100%; }
+  }
+
+  .loading-msg {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+  }
+
+  /* ── USGS TAG ── */
+  .usgs-tag {
+    position: absolute;
+    bottom: 8px;
+    right: 10px;
+    z-index: 800;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    pointer-events: none;
+    background: rgba(255,255,255,0.75);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .error-msg {
+    padding: 24px 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div class="loading-overlay" id="loading">
+  <div class="loading-title">SEISMIC</div>
+  <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
+  <div class="loading-msg">FETCHING EARTHQUAKE DATA...</div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <span class="logo-word">Seismic</span>
+    <span class="logo-tag">LIVE MONITOR</span>
+  </div>
+  <div class="header-right">
+    <div class="filter-group" id="filters">
+      <button class="filter-btn active" data-range="day">24H</button>
+      <button class="filter-btn" data-range="week">7D</button>
+      <button class="filter-btn" data-range="month">30D</button>
+    </div>
+    <div class="live-dot">
+      <div class="dot"></div>
+      <span>USGS LIVE</span>
+    </div>
+  </div>
+</header>
+
+<!-- Main -->
+<div class="main">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Recent Events</div>
+      <div class="stats-row">
+        <div class="stat">
+          <span class="stat-num" id="stat-count">—</span>
+          <span class="stat-label">EVENTS</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" id="stat-max">—</span>
+          <span class="stat-label">MAX MAG</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" id="stat-sig">—</span>
+          <span class="stat-label">M4.5+</span>
+        </div>
+      </div>
+    </div>
+    <div class="eq-list" id="eq-list"></div>
+  </div>
+
+  <!-- Map -->
+  <div style="position:relative;flex:1;overflow:hidden;">
+    <div id="map" style="width:100%;height:100%;"></div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-title">Magnitude</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b9dd4;width:8px;height:8px;"></div>&lt; 2.5</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f0a500;width:10px;height:10px;"></div>2.5 – 4.4</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e05e00;width:13px;height:13px;"></div>4.5 – 5.9</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#c0392b;width:16px;height:16px;"></div>6.0 – 6.9</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7b0e0e;width:20px;height:20px;"></div>7.0+</div>
+    </div>
+
+    <!-- Detail Panel -->
+    <div class="detail-panel" id="detail-panel">
+      <button class="detail-close" id="detail-close">✕</button>
+      <div class="detail-mag-row">
+        <div class="detail-mag" id="d-mag">—</div>
+        <div class="detail-mag-info">
+          <div class="detail-place" id="d-place">—</div>
+          <div class="detail-type" id="d-type">—</div>
+        </div>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-cell">
+          <span class="detail-cell-label">Depth</span>
+          <span class="detail-cell-val" id="d-depth">—</span>
+        </div>
+        <div class="detail-cell">
+          <span class="detail-cell-label">Coordinates</span>
+          <span class="detail-cell-val" id="d-coords">—</span>
+        </div>
+        <div class="detail-cell">
+          <span class="detail-cell-label">Time (UTC)</span>
+          <span class="detail-cell-val" id="d-time">—</span>
+        </div>
+        <div class="detail-cell">
+          <span class="detail-cell-label">Alert</span>
+          <span class="detail-cell-val" id="d-alert">—</span>
+        </div>
+        <div class="detail-cell">
+          <span class="detail-cell-label">Felt Reports</span>
+          <span class="detail-cell-val" id="d-felt">—</span>
+        </div>
+        <div class="detail-cell">
+          <span class="detail-cell-label">Tsunami</span>
+          <span class="detail-cell-val" id="d-tsunami">—</span>
+        </div>
+      </div>
+      <a href="#" class="detail-link" id="d-link" target="_blank">→ USGS EVENT PAGE</a>
+    </div>
+
+    <div class="usgs-tag">DATA: USGS EARTHQUAKE HAZARDS PROGRAM</div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────
+const MAG_STYLES = {
+  tiny:   { color: '#3b9dd4', border: '#1a78aa', size: 8  },
+  small:  { color: '#f0a500', border: '#b87a00', size: 11 },
+  medium: { color: '#e05e00', border: '#a83d00', size: 16 },
+  large:  { color: '#c0392b', border: '#8b1a1a', size: 22 },
+  major:  { color: '#7b0e0e', border: '#4a0000', size: 30 },
+};
+
+function getMagStyle(mag) {
+  if (mag < 2.5) return MAG_STYLES.tiny;
+  if (mag < 4.5) return MAG_STYLES.small;
+  if (mag < 6.0) return MAG_STYLES.medium;
+  if (mag < 7.0) return MAG_STYLES.large;
+  return MAG_STYLES.major;
+}
+
+function getMagColor(mag) { return getMagStyle(mag).color; }
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h/24)}d ago`;
+}
+
+function fmtTime(ts) {
+  return new Date(ts).toISOString().replace('T',' ').slice(0,16);
+}
+
+// ── MAP INIT ────────────────────────────────────────────
+const map = L.map('map', {
+  center: [20, 0], zoom: 2,
+  zoomControl: false,
+  attributionControl: false,
+}).addLayer(
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 18
+  })
+);
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+// ── STATE ───────────────────────────────────────────────
+let markers = [];
+let currentRange = 'day';
+let selectedId = null;
+let allQuakes = [];
+
+// ── FETCH ───────────────────────────────────────────────
+const ENDPOINTS = {
+  day:   'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson',
+  week:  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson',
+  month: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson',
+};
+
+async function loadData(range) {
+  document.getElementById('loading').classList.remove('hidden');
+  try {
+    const res = await fetch(ENDPOINTS[range]);
+    const data = await res.json();
+    allQuakes = data.features
+      .filter(f => f.geometry && f.properties.mag != null)
+      .sort((a,b) => b.properties.time - a.properties.time);
+    renderAll();
+  } catch(e) {
+    document.getElementById('eq-list').innerHTML =
+      '<div class="error-msg">⚠ FAILED TO LOAD DATA<br>Check network connection.</div>';
+  } finally {
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+
+// ── RENDER ──────────────────────────────────────────────
+function renderAll() {
+  clearMarkers();
+  renderSidebar();
+  renderMarkers();
+  updateStats();
+}
+
+function clearMarkers() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+}
+
+function updateStats() {
+  const mags = allQuakes.map(q => q.properties.mag);
+  document.getElementById('stat-count').textContent = allQuakes.length.toLocaleString();
+  document.getElementById('stat-max').textContent =
+    mags.length ? Math.max(...mags).toFixed(1) : '—';
+  document.getElementById('stat-sig').textContent =
+    allQuakes.filter(q => q.properties.mag >= 4.5).length;
+}
+
+function renderSidebar() {
+  const list = document.getElementById('eq-list');
+  const top = allQuakes.slice(0, 200);
+  list.innerHTML = top.map((q, i) => {
+    const p = q.properties;
+    const mag = p.mag != null ? p.mag.toFixed(1) : '?';
+    const col = getMagColor(p.mag || 0);
+    const place = p.place || 'Unknown location';
+    return `
+      <div class="eq-item" data-id="${q.id}" style="animation-delay:${i*0.008}s"
+           onclick="selectQuake('${q.id}')">
+        <div class="mag-badge" style="background:${col}18;color:${col};border:1.5px solid ${col}55;">
+          ${mag}
+        </div>
+        <div class="eq-info">
+          <div class="eq-place">${place}</div>
+          <div class="eq-meta">${p.type || 'earthquake'} · ${(q.geometry.coordinates[2]||0).toFixed(0)} km deep</div>
+        </div>
+        <div class="eq-time">${timeAgo(p.time)}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderMarkers() {
+  allQuakes.forEach(q => {
+    const [lng, lat, depth] = q.geometry.coordinates;
+    const p = q.properties;
+    const mag = p.mag || 0;
+    const style = getMagStyle(mag);
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:${style.size}px;height:${style.size}px;
+        background:${style.color};
+        border-radius:50%;
+        border:2px solid ${style.border};
+        box-shadow:0 1px 4px rgba(0,0,0,0.3);
+        cursor:pointer;
+        transition:transform 0.15s, box-shadow 0.15s;
+        opacity:0.92;
+      " onmouseover="this.style.transform='scale(1.45)';this.style.boxShadow='0 2px 10px rgba(0,0,0,0.4)'"
+         onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 1px 4px rgba(0,0,0,0.3)'"></div>`,
+      iconSize: [style.size, style.size],
+      iconAnchor: [style.size/2, style.size/2],
+    });
+
+    const marker = L.marker([lat, lng], { icon })
+      .addTo(map)
+      .on('click', () => selectQuake(q.id));
+
+    marker._quakeId = q.id;
+    markers.push(marker);
+  });
+}
+
+// ── SELECT ──────────────────────────────────────────────
+function selectQuake(id) {
+  selectedId = id;
+  const q = allQuakes.find(x => x.id === id);
+  if (!q) return;
+
+  document.querySelectorAll('.eq-item').forEach(el =>
+    el.classList.toggle('selected', el.dataset.id === id));
+
+  const el = document.querySelector(`.eq-item[data-id="${id}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  const [lng, lat] = q.geometry.coordinates;
+  map.flyTo([lat, lng], Math.max(map.getZoom(), 5), { duration: 0.8 });
+
+  showDetail(q);
+}
+
+function showDetail(q) {
+  const p = q.properties;
+  const [lng, lat, depth] = q.geometry.coordinates;
+  const mag = p.mag != null ? p.mag.toFixed(1) : '?';
+  const col = getMagColor(p.mag || 0);
+
+  document.getElementById('d-mag').textContent = mag;
+  document.getElementById('d-mag').style.color = col;
+  document.getElementById('d-place').textContent = p.place || 'Unknown location';
+  document.getElementById('d-type').textContent =
+    (p.type || 'earthquake').toUpperCase() + (p.magType ? ' · ' + p.magType.toUpperCase() : '');
+  document.getElementById('d-depth').textContent = depth != null ? `${depth.toFixed(1)} km` : '—';
+  document.getElementById('d-coords').textContent = `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`;
+  document.getElementById('d-time').textContent = fmtTime(p.time);
+
+  const alertEl = document.getElementById('d-alert');
+  alertEl.textContent = p.alert ? p.alert.toUpperCase() : 'NONE';
+  alertEl.style.color = p.alert
+    ? { green:'#16a34a', yellow:'#b45309', orange:'#e05e00', red:'#c0392b' }[p.alert] || 'inherit'
+    : '#8a96aa';
+
+  document.getElementById('d-felt').textContent = p.felt != null ? p.felt.toLocaleString() : '—';
+
+  const tsunamiEl = document.getElementById('d-tsunami');
+  tsunamiEl.textContent = p.tsunami ? '⚠ YES' : 'NO';
+  tsunamiEl.style.color = p.tsunami ? '#c0392b' : '#8a96aa';
+
+  document.getElementById('d-link').href = p.url || '#';
+  document.getElementById('detail-panel').classList.add('visible');
+}
+
+// ── CLOSE PANEL ─────────────────────────────────────────
+document.getElementById('detail-close').onclick = () => {
+  document.getElementById('detail-panel').classList.remove('visible');
+  document.querySelectorAll('.eq-item').forEach(el => el.classList.remove('selected'));
+  selectedId = null;
+};
+
+// ── FILTERS ─────────────────────────────────────────────
+document.getElementById('filters').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentRange = btn.dataset.range;
+  document.getElementById('detail-panel').classList.remove('visible');
+  loadData(currentRange);
+});
+
+// ── INIT ─────────────────────────────────────────────────
+loadData('day');
+</script>
+</body>
+</html>
